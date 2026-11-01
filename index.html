@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지오-마인드 (Geo-Mind) | 심리 쾌적도 및 힐링 경로 안내</title>
+
+    <!-- FontAwesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- 카카오 맵 API (발급받으신 JS 키 연동) -->
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=af7950a915f4a156460c375d45600c1b&libraries=services"></script>
+
+    <style>
+        :root {
+            --primary: #4a7c59;
+            --primary-light: #e8f5e9;
+            --secondary: #689f38;
+            --danger: #e53935;
+            --warning: #fb8c00;
+            --safe: #43a047;
+            --dark: #263238;
+            --gray: #78909c;
+            --light-bg: #f4f6f8;
+            --panel-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* 메인 지도 영역 */
+        #map-area {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        #kakao-map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 좌측 제어 및 분석 패널 */
+        #sidebar {
+            width: 400px;
+            height: 100%;
+            background: var(--panel-bg);
+            box-shadow: 2px 0 15px rgba(0,0,0,0.1);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(8px);
+            transition: all 0.3s ease;
+        }
+
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header span.subtitle {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+
+        .content {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* 카드 스타일 */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e0e0e0;
+        }
+
+        .card-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .btn {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover { background: #386144; }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: var(--dark);
+        }
+        .btn-secondary:hover { background: #d5d5d5; }
+
+        /* 현재 감정 체크인 */
+        .emotion-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .emotion-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 4px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .emotion-btn i { font-size: 1.3rem; }
+        .emotion-btn.active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* QGIS 가중치 설정 모듈 */
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .slider-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #555;
+        }
+
+        .slider-item input[type=range] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        /* 경로 선택 모드 */
+        .route-mode-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .route-mode-btn {
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: white;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .route-mode-btn.active {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: white;
+        }
+
+        /* 통계 및 분석 결과 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .stat-box {
+            background: var(--light-bg);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box .val {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-box .lbl {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        /* 지도 범례 */
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 14px 18px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            z-index: 100;
+            font-size: 0.8rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+
+        /* 모바일 토글 버튼 */
+        .toggle-btn {
+            display: none;
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 20;
+            background: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            #sidebar {
+                position: absolute;
+                left: -400px;
+                width: 320px;
+            }
+            #sidebar.open {
+                left: 0;
+            }
+            .toggle-btn {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <button class="toggle-btn" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+
+    <!-- 좌측 사이드바 (컨트롤 및 통계) -->
+    <div id="sidebar">
+        <div class="header">
+            <div>
+                <h1><i class="fa-solid fa-brain"></i> Geo-Mind</h1>
+                <span class="subtitle">QGIS 연동 공간 심리 지도 시스템</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 1. API 상태 인증 정보 -->
+            <div class="card">
+                <div class="card-title"><i class="fa-solid fa-map-location-dot"></i> 카카오 지도 엔진 상태</div>
+                <div class="status-badge">
+                    <i class="fa-solid fa-circle-check" style="color: #43a047;"></i> Kakao Maps API 정상 연동됨
+                </div>
+            </div>
+
+            <!-- 2. 감정 체크인 -->
+            <div class="card">
+                <div class="card-title"><i class="fa-solid fa-face-smile"></i> 현재 내 심리 상태</div>
+                <div class="emotion-selector">
+                    <button class="emotion-btn active" onclick="setEmotion('calm', this)">
+                        <i class="fa-solid fa-face-smile" style="color: #43a047;"></i>
+                        <span>평온함</span>
+                    </button>
+                    <button class="emotion-btn" onclick="setEmotion('stress', this)">
+                        <i class="fa-solid fa-face-frown" style="color: #fb8c00;"></i>
+                        <span>스트레스</span>
+                    </button>
+                    <button class="emotion-btn" onclick="setEmotion('anxiety', this)">
+                        <i class="fa-solid fa-face-flushed" style="color: #e53935;"></i>
+                        <span>불안/공황</span>
+                    </button>
+                    <button class="emotion-btn" onclick="setEmotion('fatigue', this)">
+                        <i class="fa-solid fa-face-tired" style="color: #8e24aa;"></i>
+                        <span>극심한 피로</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. QGIS 공간 가중치 설정 -->
+            <div class="card">
+                <div class="card-title"><i class="fa-solid fa-sliders"></i> QGIS 공간 가중치 설정</div>
+                <div class="slider-group">
+                    <div class="slider-item">
+                        <div class="slider-label">
+                            <span>공사/소음 회피성</span>
+                            <span id="weight-noise-val">70%</span>
+                        </div>
+                        <input type="range" id="weight-noise" min="0" max="100" value="70" onchange="updateWeights()">
+                    </div>
+                    <div class="slider-item">
+                        <div class="slider-label">
+                            <span>녹지/공원 선호도</span>
+                            <span id="weight-green-val">80%</span>
+                        </div>
+                        <input type="range" id="weight-green" min="0" max="100" value="80" onchange="updateWeights()">
+                    </div>
+                    <div class="slider-item">
+                        <div class="slider-label">
+                            <span>유동인구 밀집 회피</span>
+                            <span id="weight-crowd-val">50%</span>
+                        </div>
+                        <input type="range" id="weight-crowd" min="0" max="100" value="50" onchange="updateWeights()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 경로 탐색 모드 -->
+            <div class="card">
+                <div class="card-title"><i class="fa-solid fa-route"></i> 길안내 탐색 모드</div>
+                <div class="route-mode-group">
+                    <button class="route-mode-btn active" id="btn-clean" onclick="calculateRoute('clean')">
+                        <i class="fa-solid fa-shield-heart"></i><br>클린 힐링 경로
+                    </button>
+                    <button class="route-mode-btn" id="btn-fast" onclick="calculateRoute('fast')">
+                        <i class="fa-solid fa-bolt"></i><br>최단 거리 경로
+                    </button>
+                </div>
+            </div>
+
+            <!-- 5. 경로 분석 통계 -->
+            <div class="card" id="stats-card">
+                <div class="card-title"><i class="fa-solid fa-chart-pie"></i> 경로 심리 분석 리포트</div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="val" id="stat-stress-reduction">-42%</div>
+                        <div class="lbl">예상 스트레스 감소</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="val" id="stat-time-diff">+3분</div>
+                        <div class="lbl">최단 거리 대비 추가 소요</div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" style="width: 100%; margin-top: 12px;" onclick="triggerReportModal()">
+                    <i class="fa-solid fa-bullhorn" style="color: var(--danger);"></i> 소음/불안 구역 스마트 민원 접수
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 우측 카카오 지도 영역 -->
+    <div id="map-area">
+        <div id="kakao-map"></div>
+
+        <!-- 지도 범례 -->
+        <div class="legend">
+            <div style="font-weight: 700; margin-bottom: 8px;">공간 심리 쾌적도 레벨</div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(67, 160, 71, 0.4); border: 1px solid #43a047;"></div>
+                <span>매우 쾌적 (치유 구역 / 공원)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(229, 57, 53, 0.4); border: 1px solid #e53935;"></div>
+                <span>스트레스 핫스팟 (소음/공사)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4a7c59;"></div>
+                <span>추천 힐링 이동 경로</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 카카오 지도 관련 변수
+    let map = null;
+    let activePolyline = null;
+    let activeCircles = [];
+    let activeCustomOverlays = [];
+
+    // 서울시청 중심 기준 좌표
+    const CENTER_LAT = 37.5665;
+    const CENTER_LNG = 126.9780;
+
+    // 모의 QGIS 스트레스 & 힐링 버퍼 데이터
+    const mockStressHotspots = [
+        { lat: 37.5685, lng: 126.9760, radius: 250, desc: '대형 빌딩 공사 소음 82dB' },
+        { lat: 37.5635, lng: 126.9820, radius: 200, desc: '유동인구 극심 밀집 구역' }
+    ];
+
+    const mockHealingSpots = [
+        { lat: 37.5695, lng: 126.9790, radius: 300, desc: '덕수궁 돌담길 산책로 (정서 안정 지수 94점)' },
+        { lat: 37.5640, lng: 126.9740, radius: 220, desc: '서소문 역사공원 녹지 구역' }
+    ];
+
+    // 경로 좌표 정의 (카카오 LatLng 객체)
+    const fastRouteCoords = [
+        new kakao.maps.LatLng(37.5630, 126.9730),
+        new kakao.maps.LatLng(37.5635, 126.9820), // 핫스팟 관통
+        new kakao.maps.LatLng(37.5680, 126.9840)
+    ];
+
+    const cleanRouteCoords = [
+        new kakao.maps.LatLng(37.5630, 126.9730),
+        new kakao.maps.LatLng(37.5640, 126.9740), // 힐링존 경유
+        new kakao.maps.LatLng(37.5695, 126.9790), // 덕수궁 우회길
+        new kakao.maps.LatLng(37.5680, 126.9840)
+    ];
+
+    // --- 카카오맵 초기화 ---
+    function initKakaoMap() {
+        const container = document.getElementById('kakao-map');
+        const options = {
+            center: new kakao.maps.LatLng(CENTER_LAT, CENTER_LNG),
+            level: 4
+        };
+
+        map = new kakao.maps.Map(container, options);
+
+        // 지도 확대 축소 제어 컨트롤 추가
+        const zoomControl = new kakao.maps.ZoomControl();
+        map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+
+        renderQGISLayers();
+        calculateRoute('clean');
+    }
+
+    // --- QGIS 공간 레이어 렌더링 (스트레스/힐링 버퍼) ---
+    function renderQGISLayers() {
+        // 스트레스 핫스팟 (빨간색 원)
+        mockStressHotspots.forEach(spot => {
+            const circle = new kakao.maps.Circle({
+                map: map,
+                center: new kakao.maps.LatLng(spot.lat, spot.lng),
+                radius: spot.radius,
+                strokeWeight: 1,
+                strokeColor: '#e53935',
+                strokeOpacity: 0.8,
+                fillColor: '#e53935',
+                fillOpacity: 0.35
+            });
+            activeCircles.push(circle);
+        });
+
+        // 힐링 스팟 (초록색 원)
+        mockHealingSpots.forEach(spot => {
+            const circle = new kakao.maps.Circle({
+                map: map,
+                center: new kakao.maps.LatLng(spot.lat, spot.lng),
+                radius: spot.radius,
+                strokeWeight: 1,
+                strokeColor: '#43a047',
+                strokeOpacity: 0.8,
+                fillColor: '#43a047',
+                fillOpacity: 0.35
+            });
+            activeCircles.push(circle);
+        });
+    }
+
+    // --- 경로 탐색 및 그리기 ---
+    function calculateRoute(mode) {
+        if (activePolyline) {
+            activePolyline.setMap(null);
+        }
+
+        const btnClean = document.getElementById('btn-clean');
+        const btnFast = document.getElementById('btn-fast');
+
+        if (mode === 'clean') {
+            btnClean.classList.add('active');
+            btnFast.classList.remove('active');
+
+            activePolyline = new kakao.maps.Polyline({
+                map: map,
+                path: cleanRouteCoords,
+                strokeWeight: 6,
+                strokeColor: '#4a7c59',
+                strokeOpacity: 0.9,
+                strokeStyle: 'solid'
+            });
+
+            document.getElementById('stat-stress-reduction').innerText = '-42%';
+            document.getElementById('stat-time-diff').innerText = '+3분';
+            document.getElementById('stat-stress-reduction').style.color = '#43a047';
+        } else {
+            btnFast.classList.add('active');
+            btnClean.classList.remove('active');
+
+            activePolyline = new kakao.maps.Polyline({
+                map: map,
+                path: fastRouteCoords,
+                strokeWeight: 6,
+                strokeColor: '#e53935',
+                strokeOpacity: 0.8,
+                strokeStyle: 'dash'
+            });
+
+            document.getElementById('stat-stress-reduction').innerText = '+35%';
+            document.getElementById('stat-time-diff').innerText = '0분 (최단)';
+            document.getElementById('stat-stress-reduction').style.color = '#e53935';
+        }
+    }
+
+    // --- 사용자 설정 연동 ---
+    function setEmotion(type, element) {
+        document.querySelectorAll('.emotion-btn').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+
+        if (type === 'anxiety') {
+            document.getElementById('weight-noise').value = 95;
+            document.getElementById('weight-crowd').value = 90;
+        } else if (type === 'fatigue') {
+            document.getElementById('weight-green').value = 100;
+        }
+        updateWeights();
+    }
+
+    function updateWeights() {
+        document.getElementById('weight-noise-val').innerText = document.getElementById('weight-noise').value + '%';
+        document.getElementById('weight-green-val').innerText = document.getElementById('weight-green').value + '%';
+        document.getElementById('weight-crowd-val').innerText = document.getElementById('weight-crowd').value + '%';
+    }
+
+    function triggerReportModal() {
+        alert('현재 위치 주변 소음 및 스트레스 요인 데이터가 지자체 환경 민원 자동 서식으로 작성되었습니다.\n(Therapy Town 데이터베이스 전송 완료)');
+    }
+
+    // 모바일 사이드바 토글
+    document.getElementById('sidebar-toggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+
+    // 페이지 로드 후 카카오 지도 시작
+    window.onload = () => {
+        kakao.maps.load(() => {
+            initKakaoMap();
+        });
+    };
+</script>
+</body>
+</html>
